@@ -1,57 +1,16 @@
 const std = @import("std");
 
-pub fn build_day(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, day: u32) void {
-    const path = b.fmt("day{:0>2}", .{day});
-    const root_src = b.fmt("{s}/main.zig", .{path});
-    const exe = b.addExecutable(.{ .name = path, .root_source_file = b.path(root_src), .target = target, .optimize = optimize });
-
-    // This declares intent for the executable to be installed into the
-    // standard location when the user invokes the "install" step (the default
-    // step when running `zig build`).
-    b.installArtifact(exe);
-
-    // This *creates* a Run step in the build graph, to be executed when another
-    // step is evaluated that depends on it. The next line below will establish
-    // such a dependency.
-    const run_cmd = b.addRunArtifact(exe);
-
-    // By making the run step depend on the install step, it will be run from the
-    // installation directory rather than directly from within the cache directory.
-    // This is not necessary, however, if the application depends on other installed
-    // files, this ensures they will be present and in the expected location.
-    run_cmd.step.dependOn(b.getInstallStep());
-
-    // This allows the user to pass arguments to the application in the build
-    // command itself, like this: `zig build run -- arg1 arg2 etc`
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
-
-    // This creates a build step. It will be visible in the `zig build --help` menu,
-    // and can be selected like this: `zig build run`
-    // This will evaluate the `run` step rather than the default, which is "install".
-    const run_step = b.step(b.fmt("run_{s}", .{path}), "Run specified day");
-    run_step.dependOn(&run_cmd.step);
-
-    const exe_unit_test = b.addTest(.{
-        .root_source_file = b.path(root_src),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const run_exe_unit_test = b.addRunArtifact(exe_unit_test);
-
-    // Similar to creating the run step earlier, this exposes a `test` step to
-    // the `zig build --help` menu, providing a way for the user to request
-    // running the unit tests.
-    const test_step = b.step(b.fmt("test_{s}", .{path}), "Run tests for given day");
-    test_step.dependOn(&run_exe_unit_test.step);
-}
+const required_zig_version = std.SemanticVersion.parse("0.13.0") catch unreachable;
 
 // Although this function looks imperative, note that its job is to
 // declaratively construct a build graph that will be executed by an external
 // runner.
 pub fn build(b: *std.Build) void {
+    if (comptime @import("builtin").zig_version.order(required_zig_version) == .lt) {
+        std.debug.print("Your version of Zig is too old. Install at least 0.13.0\n", .{});
+        std.os.exit(1);
+    }
+
     // Standard target options allows the person running `zig build` to choose
     // what target to build for. Here we do not override the defaults, which
     // means any target is allowed, and the default is native. Other options
@@ -63,9 +22,48 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
+    const install_all = b.step("install_all", "Install all days");
+    const run_all = b.step("run_all", "Run all days");
+
     comptime var day: usize = 1;
-    inline while (day <= 1) {
-        build_day(b, target, optimize, day);
-        day += 1;
+    inline while (day <= 25) : (day += 1) {
+        const day_name = b.fmt("day{:0>2}", .{day});
+        const day_src = b.fmt("{s}/main.zig", .{day_name});
+        const exe = b.addExecutable(.{ .name = day_name, .root_source_file = b.path(day_src), .target = target, .optimize = optimize });
+
+        const install_cmd = b.addInstallArtifact(exe, .{});
+
+        const build_test = b.addTest(.{ .root_source_file = b.path(day_src), .target = target, .optimize = optimize });
+
+        const run_test = b.addRunArtifact(build_test);
+
+        {
+            const step_key = b.fmt("install_{s}", .{day_name});
+            const step_desc = b.fmt("Install {s} exe", .{day_name});
+            const install_step = b.step(step_key, step_desc);
+            install_step.dependOn(&install_cmd.step);
+            install_all.dependOn(&install_cmd.step);
+        }
+        {
+            const step_key = b.fmt("test_{s}", .{day_name});
+            const step_desc = b.fmt("Run tests in {s}", .{day_name});
+            const test_step = b.step(step_key, step_desc);
+            test_step.dependOn(&run_test.step);
+        }
+
+        const run_cmd = b.addRunArtifact(exe);
+        if (b.args) |args| {
+            run_cmd.addArgs(args);
+        }
+
+        const run_desc = b.fmt("Run {s}", .{day_name});
+        const run_step = b.step(day_name, run_desc);
+        run_step.dependOn(&run_cmd.step);
+        run_all.dependOn(&run_cmd.step);
     }
+
+    const test_all = b.step("test", "Run all tests");
+    const all_tests = b.addTest(.{ .root_source_file = b.path("tests.zig"), .target = target, .optimize = optimize });
+    const run_all_tests = b.addRunArtifact(all_tests);
+    test_all.dependOn(&run_all_tests.step);
 }
