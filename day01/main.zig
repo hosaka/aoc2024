@@ -21,7 +21,6 @@ fn lessThan(_: void, lhs: []const u8, rhs: []const u8) bool {
 }
 
 pub fn solve(input: []const u8) !Answer {
-    _ = std.mem.split(u8, input, "\n");
     var rows = splitScalar(u8, input, '\n');
     var left_list = List([]const u8).init(alloc);
     defer left_list.deinit();
