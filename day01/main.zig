@@ -79,6 +79,6 @@ pub fn main() !void {
 
 test "test input" {
     const answer = try solve(@embedFile("test.txt"));
-    try std.testing.expectEqual(answer.distance, 11);
-    try std.testing.expectEqual(answer.similarity, 31);
+    try std.testing.expectEqual(11, answer.distance);
+    try std.testing.expectEqual(31, answer.similarity);
 }
