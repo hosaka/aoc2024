@@ -6,11 +6,11 @@
 
 - [x] Day 01
 - [x] Day 02
-- [ ] Day 03
-- [ ] Day 04
-- [ ] Day 05
-- [ ] Day 06
-- [ ] Day 07
+- [-] Day 03
+- [x] Day 04
+- [x] Day 05
+- [-] Day 06
+- [x] Day 07
 - [ ] Day 08
 - [ ] Day 09
 - [ ] Day 10
